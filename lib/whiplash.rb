@@ -73,11 +73,12 @@ module Whiplash
     # force creation of a session_id
     mysession[:tmp] = 1
     mysession.delete(:tmp)
-    sessionid = mysession[:session_id] || request.session_options[:id]
+    sessionid = mysession[:session_id] || ''
     return "#{sessionid}_#{Random.rand}"
   end
 
   def spin_for_choice(test_name, choice, mysession=nil)
+    mysession ||= session
     data = {type: "spin", when: Time.now.to_f, nonce: redis_nonce(mysession), test: test_name, choice: choice}
     Whiplash.log data.to_json
     Whiplash.redis.incr("whiplash/#{test_name}/#{choice}/spins")
@@ -90,6 +91,12 @@ module Whiplash
   end
 
   def spin!(test_name, goal, options=[true, false], mysession=nil, measure=false)
+    mysession ||= session
+    choice = spin(test_name, goal, options, mysession, measure)
+    return spin_for_choice(test_name, choice, mysession)
+  end
+  
+  def spin(test_name, goal, options, mysession=nil, measure=false)
     mysession ||= session
     #manual_whiplash_mode allows to set new options using /whiplash_sessions page
     if mysession.key?(test_name) && (options.include?(mysession[test_name]) || mysession.key?("manual_whiplash_mode"))
@@ -104,7 +111,6 @@ module Whiplash
     else
       choice = best_guess(data_for_options(test_name, options))
     end
-    return spin_for_choice(test_name, choice, mysession)
   end
 
   def win_on_option!(test_name, choice, mysession=nil)
